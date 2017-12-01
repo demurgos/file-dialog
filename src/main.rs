@@ -1,34 +1,37 @@
-extern crate libc;
-extern crate gtk;
-extern crate qt_core;
-extern crate qt_widgets;
+#[macro_use]
+extern crate objc;
 
-use qt_widgets::file_dialog::FileDialog;
-use qt_widgets::cpp_utils::CppBox;
-use qt_widgets::application::Application;
-use qt_core::core_application::CoreApplication;
+extern crate cocoa;
 
-/// convert a Rust string to a QString
-fn create_q_string(str: &str) -> qt_core::string::String {
-  let mut bytearray = qt_core::byte_array::ByteArray::new(());
-  for b in str.as_bytes() {
-    bytearray.append(*b as libc::c_char);
-  }
-  qt_core::string::String::from_utf8(&bytearray)
-}
+use cocoa::base::{selector, nil, NO};
+use cocoa::foundation::{NSRect, NSPoint, NSSize, NSAutoreleasePool, NSProcessInfo,
+                        NSString, NSInteger};
+use cocoa::appkit::{NSApp, NSApplication, NSApplicationActivationPolicyRegular, NSWindow,
+                    NSBackingStoreBuffered, NSMenu, NSMenuItem, NSWindowStyleMask,
+                    NSRunningApplication, NSApplicationActivateIgnoringOtherApps};
 
 fn main() {
-  Application::create_and_exit(|app: &mut Application| {
-    CoreApplication::set_attribute((qt_core::qt::ApplicationAttribute::UseHighDpiPixmaps, true));
+  unsafe {
+    let _pool = NSAutoreleasePool::new(nil);
+    let app = NSApp();
 
-    let parent: *mut qt_widgets::widget::Widget = std::ptr::null_mut();
-    let title: qt_core::string::String = create_q_string("Open file");
+    app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
 
-    unsafe {
-      let mut fd_box: CppBox<FileDialog> = qt_widgets::file_dialog::FileDialog::new_unsafe((parent, &title));
-      fd_box.as_mut().set_accept_mode(qt_widgets::file_dialog::AcceptMode::Open);
-      let result: libc::c_int = fd_box.as_mut().exec();
-    }
-    0
-  })
+    // create Menu Bar
+    let menubar = NSMenu::new(nil).autorelease();
+    let app_menu_item = NSMenuItem::new(nil).autorelease();
+    menubar.addItem_(app_menu_item);
+    app.setMainMenu_(menubar);
+
+    // create Window
+    let current_app = NSRunningApplication::currentApplication(nil);
+    current_app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps);
+
+    let dialog: *mut objc::runtime::Object = msg_send![cocoa::base::class("NSOpenPanel"), openPanel];
+    msg_send![dialog, setAllowsMultipleSelection:objc::runtime::YES];
+    let allow_mult: objc::runtime::BOOL = msg_send![dialog, allowsMultipleSelection];
+    let dir = NSString::alloc(nil).init_str("/Users/demurgos");
+    let selected_count: NSInteger = msg_send![dialog, runModalForDirectory:dir file:nil types:nil];
+    println!("{:?}", selected_count);
+  }
 }
