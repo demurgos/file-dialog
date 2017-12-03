@@ -32,6 +32,22 @@ pub fn open_file_sync(options: &OpenFileOptions) -> Result<Option<path::PathBuf>
   gtk::open_file_sync(options)
 }
 
+#[cfg(target_os = "macos")]
+extern crate cocoa as cocoa_bindings;
+#[cfg(target_os = "macos")]
+extern crate libc;
+#[cfg(target_os = "macos")]
+#[macro_use]
+extern crate objc;
+
+#[cfg(target_os = "macos")]
+pub mod cocoa;
+
+#[cfg(target_os = "macos")]
+pub fn open_file_sync(options: &OpenFileOptions) -> Result<Option<path::PathBuf>, OpenFileError> {
+  cocoa::open_file_sync(options)
+}
+
 #[cfg(target_os = "windows")]
 extern crate ole32;
 #[cfg(target_os = "windows")]
