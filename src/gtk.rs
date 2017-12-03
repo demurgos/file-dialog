@@ -1,63 +1,35 @@
-//extern crate libc;
-//extern crate gtk;
-//extern crate qt_core;
-//extern crate qt_widgets;
-//
-//use qt_widgets::file_dialog::FileDialog;
-//use qt_widgets::cpp_utils::CppBox;
-//use qt_core::core_application::CoreApplication;
-//use qt_core::variant::Variant;
-//use qt_core::variant_animation::VariantAnimation;
-//use qt_core::connection::Signal;
-//use qt_core::slots::SlotVariantRef;
-//use gtk::DialogExt;
-//use std::ops::Deref;
-//
-///// convert a Rust string to a QString
-//fn create_q_string(str: &str) -> qt_core::string::String {
-//  let mut bytearray = qt_core::byte_array::ByteArray::new(());
-//  for b in str.as_bytes() {
-//    bytearray.append(*b as libc::c_char);
-//  }
-//  qt_core::string::String::from_utf8(&bytearray)
-//}
-//
-//fn main() {
-//  CoreApplication::create_and_exit(|app: &mut CoreApplication| {
-//    println!("Before");
-//    CoreApplication::set_attribute((qt_core::qt::ApplicationAttribute::UseHighDpiPixmaps, true));
-//
-//    unsafe {
-//      let parent: *mut qt_widgets::widget::Widget = std::ptr::null_mut();
-//      println!("With parent");
-//      let mut fd_box: CppBox<FileDialog> = qt_widgets::file_dialog::FileDialog::new_unsafe((parent));
-//    }
-//    println!("After");
-//    0
-//  })
-////  let fd: &mut FileDialog = fd_box.as_mut();
-////  println!("{:?}", "hoy");
-////  fd.set_accept_mode(qt_widgets::file_dialog::AcceptMode::Open);
-////  println!("{:?}", "hoy");
-//
-////  CoreApplication::create_and_exit(|app| {
-////
-////
-////    unsafe {
-////
-////      let caption: qt_core::string::String = create_q_string("Open File");
-////      qt_widgets::file_dialog::FileDialog::get_open_file_name_unsafe((parent, &caption));
-////    }
-////    0
-////  })
-//}
-//
-////fn gtk_f() {
-//////  let window = ApplicationWindow::new(application);
-////  let init_result = gtk::init();
-////  if init_result.is_err() {
-////    return;
-////  }
-////  let dialog = gtk::FileChooserDialog::new::<gtk::ApplicationWindow>(Option::Some("Open File"), Option::None, gtk::FileChooserAction::Open);
-////  let result = dialog.run();
-////}
+use gtk_bindings;
+use gtk_bindings::{Window, DialogExt, FileChooserAction, FileChooserDialog, FileChooserExt, ResponseType, WidgetExt};
+use glib::translate::FromGlib;
+use std::option::Option;
+use std::path;
+use std::result::Result;
+use types::{OpenFileError, OpenFileOptions};
+
+/// @see https://github.com/GNOME/gtk/blob/bcc77e169cb0a5219ef5c1f0554b90978ca0d17f/gtk/gtkfilechooserbutton.c#L106
+pub const DEFAULT_TITLE: &str = "Select a File";
+
+pub fn open_file_sync(options: &OpenFileOptions) -> Result<Option<path::PathBuf>, OpenFileError> {
+  if let Err(err) = gtk_bindings::init() {
+    return Err(OpenFileError::Unknown(Some(format!("{:?}", err))));
+  }
+
+  let title = options.title.or(Some(DEFAULT_TITLE));
+
+  let dialog = FileChooserDialog::with_buttons::<Window>(
+    title,
+    Option::None,
+    FileChooserAction::Open,
+    &[("_Cancel", ResponseType::Cancel), ("_Open", ResponseType::Accept)]
+  );
+
+  let result = match ResponseType::from_glib(dialog.run()) {
+    ResponseType::DeleteEvent => Ok(None), // Close the window
+    ResponseType::Cancel => Ok(None), // Cancel button
+    ResponseType::Accept => Ok(dialog.get_filename()),
+    response_type => Err(OpenFileError::Unknown(Some(format!("Unexpected response type: {:?}", response_type))))
+  };
+
+  dialog.destroy();
+  result
+}
